@@ -49,7 +49,7 @@ func getExternalEndpoint(iface, serverIP, peer string) string {
 }
 
 func setPeer(iface, peer, endpoint string) error {
-	log.Printf("setting %s endpoint to %s", peer, endpoint)
+	log.Printf("setting %s endpoint to %s\n", peer, endpoint)
 
 	return exec.Command("wg", "set", iface, "peer", peer,
 		"persistent-keepalive", "25",
