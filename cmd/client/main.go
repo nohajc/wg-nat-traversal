@@ -92,11 +92,17 @@ func (c *WgClient) setPeer(peer, endpoint string) error {
 	endpointUDPAddr := net.UDPAddrFromAddrPort(endpointAddrPort)
 	keepalive := 25 * time.Second
 
+	pubKey, err := wgtypes.ParseKey(peer)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("setting %s endpoint to %s\n", peer, endpoint)
 
 	return c.client.ConfigureDevice(c.iface, wgtypes.Config{
 		Peers: []wgtypes.PeerConfig{
 			{
+				PublicKey:                   pubKey,
 				Endpoint:                    endpointUDPAddr,
 				PersistentKeepaliveInterval: &keepalive,
 			},
