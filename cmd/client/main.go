@@ -45,7 +45,7 @@ func getExternalEndpoint(iface, serverIP, peer string) string {
 	if err != nil {
 		return ""
 	}
-	return string(respBytes)
+	return strings.TrimSpace(string(respBytes))
 }
 
 func setPeer(iface, peer, endpoint string) error {
