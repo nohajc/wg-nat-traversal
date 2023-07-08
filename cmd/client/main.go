@@ -4,34 +4,70 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
+	"time"
+
+	"golang.zx2c4.com/wireguard/wgctrl"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-func getServerPubKey(iface, serverIP string) (string, error) {
-	serverIP = strings.Split(serverIP, ":")[0]
-	script := fmt.Sprintf("wg show %s allowed-ips | grep %s | cut -f1", iface, serverIP)
-	outBytes, err := exec.Command("bash", "-c", script).Output()
+type WgClient struct {
+	client   *wgctrl.Client
+	iface    string
+	serverIP string
+}
+
+func NewWgClient(iface, serverIP string) (*WgClient, error) {
+	client, err := wgctrl.New()
+	if err != nil {
+		return nil, err
+	}
+	return &WgClient{
+		client:   client,
+		iface:    iface,
+		serverIP: serverIP,
+	}, nil
+}
+
+func (c *WgClient) getServerPubKey() (string, error) {
+	serverIP := strings.Split(c.serverIP, ":")[0]
+
+	dev, err := c.client.Device(c.iface)
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(outBytes)), nil
+
+	for _, p := range dev.Peers {
+		for _, ip := range p.AllowedIPs {
+			if serverIP == ip.IP.String() {
+				return p.PublicKey.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no peer corresponding to the server")
 }
 
-func getPeerList(iface string) []string {
-	outBytes, err := exec.Command("wg", "show", iface, "peers").Output()
+func (c *WgClient) getPeerList() []string {
+	dev, err := c.client.Device(c.iface)
 	if err != nil {
 		return nil
 	}
-	return strings.Split(strings.TrimSpace(string(outBytes)), "\n")
+
+	var peerPubKeys []string
+	for _, p := range dev.Peers {
+		peerPubKeys = append(peerPubKeys, p.PublicKey.String())
+	}
+	return peerPubKeys
 }
 
-func getExternalEndpoint(iface, serverIP, peer string) string {
+func (c *WgClient) getExternalEndpoint(peer string) string {
 	escapedPeer := url.QueryEscape(peer)
-	request := fmt.Sprintf("http://%s?pubkey=%s", serverIP, escapedPeer)
+	request := fmt.Sprintf("http://%s?pubkey=%s", c.serverIP, escapedPeer)
 	resp, err := http.Get(request)
 	if err != nil {
 		return ""
@@ -48,24 +84,38 @@ func getExternalEndpoint(iface, serverIP, peer string) string {
 	return strings.TrimSpace(string(respBytes))
 }
 
-func setPeer(iface, peer, endpoint string) error {
+func (c *WgClient) setPeer(peer, endpoint string) error {
+	endpointAddrPort, err := netip.ParseAddrPort(endpoint)
+	if err != nil {
+		return err
+	}
+	endpointUDPAddr := net.UDPAddrFromAddrPort(endpointAddrPort)
+	keepalive := 25 * time.Second
+
 	log.Printf("setting %s endpoint to %s\n", peer, endpoint)
 
-	return exec.Command("wg", "set", iface, "peer", peer,
-		"persistent-keepalive", "25",
-		"endpoint", endpoint,
-	).Run()
+	return c.client.ConfigureDevice(c.iface, wgtypes.Config{
+		Peers: []wgtypes.PeerConfig{
+			{
+				Endpoint:                    endpointUDPAddr,
+				PersistentKeepaliveInterval: &keepalive,
+			},
+		},
+	})
 }
 
-func resolvePeers(iface, serverIP, serverPubKey string) {
-	for _, p := range getPeerList(iface) {
+func (c *WgClient) resolvePeers(serverPubKey string) {
+	for _, p := range c.getPeerList() {
 		if p == serverPubKey {
 			log.Printf("skipping %s", p)
 			continue
 		}
-		endpoint := getExternalEndpoint(iface, serverIP, p)
-		if endpoint != "(none)" {
-			setPeer(iface, p, endpoint)
+		endpoint := c.getExternalEndpoint(p)
+		if endpoint != "" {
+			err := c.setPeer(p, endpoint)
+			if err != nil {
+				log.Printf("error configuring peer: %v", err)
+			}
 		}
 	}
 }
@@ -84,11 +134,17 @@ func main() {
 	if len(os.Args) > 2 {
 		iface = os.Args[2]
 	}
-	serverPubKey, err := getServerPubKey(iface, serverIP)
+
+	client, err := NewWgClient(iface, serverIP)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serverPubKey, err := client.getServerPubKey()
 	if err != nil {
 		log.Fatal(err)
 	}
 	// fmt.Println(serverPubKey)
 
-	resolvePeers(iface, serverIP, serverPubKey)
+	client.resolvePeers(serverPubKey)
 }
