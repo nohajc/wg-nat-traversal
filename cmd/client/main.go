@@ -12,6 +12,7 @@ import (
 )
 
 func getServerPubKey(iface, serverIP string) (string, error) {
+	serverIP = strings.Split(serverIP, ":")[0]
 	script := fmt.Sprintf("wg show %s allowed-ips | grep %s | cut -f1", iface, serverIP)
 	outBytes, err := exec.Command("bash", "-c", script).Output()
 	if err != nil {
@@ -71,10 +72,14 @@ func resolvePeers(iface, serverIP, serverPubKey string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s SERVER_IP [WG_IFACE]", os.Args[0])
+		log.Fatalf("usage: %s SERVER_IP[:PORT] [WG_IFACE]", os.Args[0])
 	}
 
 	serverIP := os.Args[1]
+	if !strings.Contains(serverIP, ":") {
+		serverIP += ":8080"
+	}
+
 	iface := "wg0"
 	if len(os.Args) > 2 {
 		iface = os.Args[2]

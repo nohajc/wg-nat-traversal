@@ -27,5 +27,5 @@ func main() {
 		iface = os.Args[1]
 	}
 	http.HandleFunc("/", makeHandler(iface))
-	log.Fatal(http.ListenAndServe(":80", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
