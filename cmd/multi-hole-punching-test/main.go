@@ -75,7 +75,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: invalid NAT type; specify easy or hard")
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "error: %s\n", err)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+	}
 }
 
 func waitForResponse(conn net.PacketConn, done chan bool) {
@@ -111,7 +113,7 @@ func guessRemotePort(remoteIP string) error {
 	fmt.Println("Press Enter to continue")
 	fmt.Scanln()
 
-	var done chan (bool)
+	done := make(chan bool)
 	waitForResponse(conn, done)
 
 loop:
@@ -148,6 +150,7 @@ func guessLocalPort(remoteAddr string) error {
 		return err
 	}
 
+	allDone := make(chan bool)
 	for i := 0; i < 384; i++ {
 		go func() {
 			conn, err := net.ListenPacket("udp", ":0")
@@ -156,7 +159,7 @@ func guessLocalPort(remoteAddr string) error {
 				return
 			}
 
-			var done chan (bool)
+			done := make(chan bool)
 			waitForResponse(conn, done)
 
 			for {
@@ -170,14 +173,14 @@ func guessLocalPort(remoteAddr string) error {
 
 				select {
 				case <-done:
-					os.Exit(0)
+					allDone <- true
 				default:
 				}
 
 				time.Sleep(10 * time.Millisecond)
 			}
-
 		}()
+		<-allDone
 	}
 	return nil
 }
