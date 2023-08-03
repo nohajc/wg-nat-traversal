@@ -99,7 +99,7 @@ func waitForResponse(conn net.PacketConn, done chan bool) {
 }
 
 func guessRemotePort(remoteIP string) error {
-	conn, err := net.ListenPacket("udp", ":0")
+	conn, err := net.ListenPacket("udp4", ":0")
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ loop:
 	for {
 		remoteAddr := fmt.Sprintf("%s:%d", remoteIP, rand.Intn(65536))
 		fmt.Printf("trying %s ...\n", remoteAddr)
-		dst, err := net.ResolveUDPAddr("udp", remoteAddr)
+		dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ loop:
 }
 
 func guessLocalPort(remoteAddr string) error {
-	dst, err := net.ResolveUDPAddr("udp", remoteAddr)
+	dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
 	if err != nil {
 		return err
 	}
@@ -153,11 +153,12 @@ func guessLocalPort(remoteAddr string) error {
 	allDone := make(chan bool)
 	for i := 0; i < 384; i++ {
 		go func() {
-			conn, err := net.ListenPacket("udp", ":0")
+			conn, err := net.ListenPacket("udp4", ":0")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				return
 			}
+			fmt.Printf("trying %s ...\n", conn.LocalAddr().String())
 
 			done := make(chan bool)
 			waitForResponse(conn, done)
