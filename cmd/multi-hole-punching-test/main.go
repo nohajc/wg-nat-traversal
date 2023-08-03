@@ -181,7 +181,8 @@ func guessLocalPort(remoteAddr string) error {
 				time.Sleep(10 * time.Millisecond)
 			}
 		}()
-		<-allDone
 	}
+	<-allDone
+
 	return nil
 }
