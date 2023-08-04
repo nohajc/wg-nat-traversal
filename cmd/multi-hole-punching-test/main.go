@@ -125,11 +125,12 @@ loop:
 			return err
 		}
 
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 10; i++ {
 			_, err = conn.WriteTo([]byte(remoteAddr), dst)
 			if err != nil {
 				return err
 			}
+			time.Sleep(1 * time.Millisecond)
 		}
 
 		select {
@@ -138,7 +139,7 @@ loop:
 		default:
 		}
 
-		time.Sleep(10 * time.Millisecond)
+		// time.Sleep(10 * time.Millisecond)
 	}
 
 	return nil
@@ -164,13 +165,13 @@ func guessLocalPort(remoteAddr string) error {
 			waitForResponse(conn, done)
 
 			for {
-				for i := 0; i < 5; i++ {
-					_, err = conn.WriteTo([]byte(remoteAddr), dst)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "error: %s\n", err)
-						return
-					}
+				// for i := 0; i < 5; i++ {
+				_, err = conn.WriteTo([]byte(remoteAddr), dst)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "error: %s\n", err)
+					return
 				}
+				// }
 
 				select {
 				case <-done:
@@ -178,7 +179,7 @@ func guessLocalPort(remoteAddr string) error {
 				default:
 				}
 
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(2 * time.Millisecond)
 			}
 		}()
 	}
