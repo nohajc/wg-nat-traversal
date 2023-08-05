@@ -198,8 +198,8 @@ func guessRemotePort(remoteIP string) error {
 		}
 
 		select {
-		case port := <-done:
-			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, port)
+		case peerPort := <-done:
+			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, peerPort)
 		default:
 		}
 
@@ -236,8 +236,11 @@ func guessLocalPort(remoteAddr string) error {
 	}
 
 	allDone := make(chan bool)
+	var peerPort int
+
 	for i := 0; i < portCount; i++ {
 		idx := i
+
 		go func() {
 			conn := conns[idx]
 			fmt.Printf("trying %s ...\n", conn.LocalAddr().String())
@@ -245,6 +248,7 @@ func guessLocalPort(remoteAddr string) error {
 			done := make(chan int, 1)
 			waitForResponse(conn, done)
 
+		loop:
 			for {
 				for i := 0; i < 5; i++ {
 					_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
@@ -255,18 +259,42 @@ func guessLocalPort(remoteAddr string) error {
 				}
 
 				select {
-				case <-done:
-					// allDone <- true
+				case peerPort = <-done:
+					allDone <- true
+					break loop
 				default:
 				}
 
 				time.Sleep(200 * time.Millisecond)
 			}
+
 		}()
 	}
 	<-allDone
 
-	return nil
+	for _, c := range conns {
+		c.Close()
+	}
+
+	localAddr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf(":%d", peerPort))
+	if err != nil {
+		return err
+	}
+	conn, err := net.ListenUDP("udp4", localAddr)
+	if err != nil {
+		return err
+	}
+
+	for {
+		for i := 0; i < 5; i++ {
+			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
+			if err != nil {
+				return err
+			}
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func simpleTest(remoteIP string) error {
@@ -316,7 +344,7 @@ func simpleTest(remoteIP string) error {
 		default:
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// return nil
