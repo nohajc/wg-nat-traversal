@@ -26,9 +26,9 @@ func main() {
 
 	var err error
 	if natType == "easy" {
-		err = utils.GuessRemotePort(remoteAddr)
+		_, err = utils.GuessRemotePort(remoteAddr)
 	} else if natType == "hard" {
-		err = utils.GuessLocalPort(remoteAddr)
+		_, err = utils.GuessLocalPort(remoteAddr)
 	} else {
 		// fmt.Fprintln(os.Stderr, "error: invalid NAT type; specify easy or hard")
 		// os.Exit(1)

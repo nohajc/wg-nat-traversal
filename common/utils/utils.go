@@ -154,20 +154,20 @@ func waitForResponse(conn *net.UDPConn, resolved chan PortInfo, acked chan bool)
 	}()
 }
 
-func GuessRemotePort(remoteIP string) error {
+func GuessRemotePort(remoteIP string) (int, error) {
 	localAddr, err := net.ResolveUDPAddr("udp", ":0")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	conn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer conn.Close()
 
 	pubIP, pubPort, err := GetPublicAddr(conn)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), pubIP, pubPort)
@@ -196,13 +196,13 @@ func GuessRemotePort(remoteIP string) error {
 
 		dst, err := net.ResolveUDPAddr("udp", remoteAddr)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		for i := 0; i < 5; i++ {
 			_, err = conn.WriteTo([]byte(message), dst)
 			if err != nil {
-				return err
+				return 0, err
 			}
 		}
 
@@ -230,13 +230,13 @@ func GuessRemotePort(remoteIP string) error {
 	}
 
 	fmt.Printf("Remote addr: %s\n", remoteAddr)
-	return nil
+	return portInfo.PeerPort, nil
 }
 
-func GuessLocalPort(remoteAddr string) error {
+func GuessLocalPort(remoteAddr string) (int, error) {
 	dst, err := net.ResolveUDPAddr("udp", remoteAddr)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	const portCount = 384
@@ -245,7 +245,7 @@ func GuessLocalPort(remoteAddr string) error {
 	for i := 0; i < portCount; {
 		localAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", 1024+rand.Intn(65536-1024)))
 		if err != nil {
-			return err
+			return 0, err
 		}
 		conns[i], err = net.ListenUDP("udp", localAddr)
 		if err != nil {
@@ -319,7 +319,7 @@ loop:
 		for i := 0; i < 5; i++ {
 			_, err = conn.WriteTo([]byte("RESOLVED"), dst)
 			if err != nil {
-				return err
+				return 0, err
 			}
 		}
 
@@ -333,7 +333,7 @@ loop:
 
 	fmt.Printf("Local addr: :%d\n", portInfo.LocalPort)
 	conn.Close()
-	return nil
+	return portInfo.LocalPort, nil
 }
 
 func SimpleTest(remoteIP string) error {
