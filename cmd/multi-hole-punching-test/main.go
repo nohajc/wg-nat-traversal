@@ -201,9 +201,11 @@ func guessRemotePort(remoteIP string) error {
 	done := make(chan PortInfo, 1)
 	waitForResponse(conn, done)
 
+	var portInfo PortInfo
 	sleepDuration := 10 * time.Millisecond
 	var remoteAddr string
-	// loop:
+
+loop:
 	for {
 		if !gotFirstResponse.Load() {
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, 1024+rand.Intn(65536-1024))
@@ -222,16 +224,18 @@ func guessRemotePort(remoteIP string) error {
 		}
 
 		select {
-		case portInfo := <-done:
+		case portInfo = <-done:
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, portInfo.PeerPort)
 			sleepDuration = 50 * time.Millisecond
+			break loop
 		default:
 		}
 
 		time.Sleep(sleepDuration)
 	}
 
-	// return nil
+	fmt.Printf("Remote addr: %s\n", remoteAddr)
+	return nil
 }
 
 func guessLocalPort(remoteAddr string) error {
@@ -300,8 +304,10 @@ func guessLocalPort(remoteAddr string) error {
 	var conn *net.UDPConn
 	for _, c := range conns {
 		if _, port, err := net.SplitHostPort(c.LocalAddr().String()); err == nil && port == strconv.Itoa(portInfo.LocalPort) {
-			conn = c
-			continue
+			// conn = c
+			// continue
+			fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+			return nil
 		}
 		c.Close()
 	}
