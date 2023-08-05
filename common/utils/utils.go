@@ -210,9 +210,17 @@ loop:
 			message = "RESOLVED"
 
 			fmt.Printf("Remote addr: %s\n", remoteAddr)
-		case <-acked:
-			break loop
 		default:
+		}
+
+		// make sure resolved was received
+		// before we try to receive acked
+		if message == "RESOLVED" {
+			select {
+			case <-acked:
+				break loop
+			default:
+			}
 		}
 
 		time.Sleep(sleepDuration)
