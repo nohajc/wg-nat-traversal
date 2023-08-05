@@ -112,7 +112,7 @@ type PortInfo struct {
 	LocalPort int
 }
 
-func waitForResponse(conn *net.UDPConn, done chan PortInfo) {
+func waitForResponse(conn *net.UDPConn, resolved chan PortInfo, acked chan bool) {
 	go func() {
 		for {
 			buf := make([]byte, 1024)
@@ -141,10 +141,13 @@ func waitForResponse(conn *net.UDPConn, done chan PortInfo) {
 					return
 				}
 
-				done <- PortInfo{
+				resolved <- PortInfo{
 					PeerPort:  peerAddr.Port,
 					LocalPort: localPort,
 				}
+			}
+			if string(buf[0:n]) == "RESOLVED" {
+				acked <- true
 			}
 			// break
 		}
@@ -171,21 +174,21 @@ func GuessRemotePort(remoteIP string) error {
 	fmt.Println("Press Enter to continue")
 	fmt.Scanln()
 
-	done := make(chan PortInfo, 1)
-	waitForResponse(conn, done)
+	resolved := make(chan PortInfo, 1)
+	acked := make(chan bool, 1)
+	waitForResponse(conn, resolved, acked)
 
 	var portInfo PortInfo
 	sleepDuration := 10 * time.Millisecond
 	var remoteAddr string
 
-	cnt := 10
+	message := "UNKNOWN"
 
-	for cnt > 0 {
+loop:
+	for {
 		if !gotFirstResponse.Load() {
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, 1024+rand.Intn(65536-1024))
 			fmt.Printf("trying %s ...\n", remoteAddr)
-		} else {
-			cnt--
 		}
 
 		dst, err := net.ResolveUDPAddr("udp", remoteAddr)
@@ -194,16 +197,21 @@ func GuessRemotePort(remoteIP string) error {
 		}
 
 		for i := 0; i < 5; i++ {
-			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s:%d!", pubIP, pubPort)), dst)
+			_, err = conn.WriteTo([]byte(message), dst)
 			if err != nil {
 				return err
 			}
 		}
 
 		select {
-		case portInfo = <-done:
+		case portInfo = <-resolved:
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, portInfo.PeerPort)
 			sleepDuration = 50 * time.Millisecond
+			message = "RESOLVED"
+
+			fmt.Printf("Remote addr: %s\n", remoteAddr)
+		case <-acked:
+			break loop
 		default:
 		}
 
@@ -235,12 +243,14 @@ func GuessLocalPort(remoteAddr string) error {
 		i++
 	}
 
-	pubIP, _, err := GetPublicAddr(nil)
-	if err != nil {
-		return err
-	}
+	// pubIP, _, err := GetPublicAddr(nil)
+	// if err != nil {
+	// 	return err
+	// }
 
-	allDone := make(chan bool)
+	allDone := make(chan bool, 1)
+	acked := make(chan bool, 1)
+
 	var portInfo PortInfo
 
 	for i := 0; i < portCount; i++ {
@@ -250,13 +260,13 @@ func GuessLocalPort(remoteAddr string) error {
 			conn := conns[idx]
 			fmt.Printf("trying %s ...\n", conn.LocalAddr().String())
 
-			done := make(chan PortInfo, 1)
-			waitForResponse(conn, done)
+			resolved := make(chan PortInfo, 1)
+			waitForResponse(conn, resolved, acked)
 
 		loop:
 			for {
 				for i := 0; i < 5; i++ {
-					_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
+					_, err = conn.WriteTo([]byte("UNKNOWN"), dst)
 					if err != nil {
 						if !errors.Is(err, net.ErrClosed) {
 							fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -266,7 +276,7 @@ func GuessLocalPort(remoteAddr string) error {
 				}
 
 				select {
-				case portInfo = <-done:
+				case portInfo = <-resolved:
 					allDone <- true
 					break loop
 				default:
@@ -291,16 +301,24 @@ func GuessLocalPort(remoteAddr string) error {
 		log.Fatal("Conn is nil")
 	}
 
+	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+
 	// send couple more packets so there's a higher chance
 	// the peer will receive at least one of them (TODO: proper ack)
-	for j := 0; j < 5; j++ {
+loop:
+	for {
 		for i := 0; i < 5; i++ {
-			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
+			_, err = conn.WriteTo([]byte("RESOLVED"), dst)
 			if err != nil {
 				return err
 			}
 		}
 
+		select {
+		case <-acked:
+			break loop
+		default:
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -332,7 +350,8 @@ func SimpleTest(remoteIP string) error {
 	fmt.Printf("Sending packets to %s:%d ...\n", remoteIP, remotePort)
 
 	done := make(chan PortInfo, 1)
-	waitForResponse(conn, done)
+	acked := make(chan bool, 1)
+	waitForResponse(conn, done, acked)
 
 	remoteAddr := fmt.Sprintf("%s:%d", remoteIP, remotePort)
 	fmt.Printf("trying %s ...\n", remoteAddr)
