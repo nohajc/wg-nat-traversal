@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pion/stun"
+	"github.com/pion/transport/v2"
 	"github.com/pion/transport/v2/stdnet"
 )
 
@@ -50,12 +51,18 @@ func getPublicAddr(conn *net.UDPConn) (string, int, error) {
 		return "", 0, fmt.Errorf("failed to create net: %w", err)
 	}
 
-	// Creating a "connection" to STUN server.
-	c, err := stun.DialURI(u, &stun.DialConfig{
-		Net: &CustomNet{
+	var net transport.Net = nil
+
+	if conn != nil {
+		net = &CustomNet{
 			Net:  nw,
 			conn: conn,
-		},
+		}
+	}
+
+	// Creating a "connection" to STUN server.
+	c, err := stun.DialURI(u, &stun.DialConfig{
+		Net: net,
 	})
 	if err != nil {
 		return "", 0, err
@@ -124,7 +131,7 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 		for {
 			buf := make([]byte, 1024)
 			conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-			n, err := conn.Read(buf)
+			n, peerAddr, err := conn.ReadFromUDP(buf)
 			if err != nil {
 				if !errors.Is(err, os.ErrDeadlineExceeded) {
 					fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -137,7 +144,7 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 			// 	return
 			// }
 			// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
-			log.Printf("got a response: %s\n", buf[0:n])
+			log.Printf("%s sent a response: %s\n", peerAddr.String(), buf[0:n])
 			// done <- true
 			// break
 		}
@@ -175,12 +182,11 @@ loop:
 			return err
 		}
 
-		for i := 0; i < 10; i++ {
-			_, err = conn.WriteTo([]byte("Hello!"), dst)
+		for i := 0; i < 5; i++ {
+			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s:%d!", pubIP, pubPort)), dst)
 			if err != nil {
 				return err
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 
 		select {
@@ -189,7 +195,7 @@ loop:
 		default:
 		}
 
-		// time.Sleep(10 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	return nil
@@ -216,6 +222,11 @@ func guessLocalPort(remoteAddr string) error {
 		i++
 	}
 
+	pubIP, _, err := getPublicAddr(nil)
+	if err != nil {
+		return err
+	}
+
 	allDone := make(chan bool)
 	for i := 0; i < portCount; i++ {
 		idx := i
@@ -227,13 +238,13 @@ func guessLocalPort(remoteAddr string) error {
 			waitForResponse(conn, done)
 
 			for {
-				// for i := 0; i < 5; i++ {
-				_, err = conn.WriteTo([]byte("Hello!"), dst)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error: %s\n", err)
-					return
+				for i := 0; i < 5; i++ {
+					_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "error: %s\n", err)
+						return
+					}
 				}
-				// }
 
 				select {
 				case <-done:
@@ -241,7 +252,7 @@ func guessLocalPort(remoteAddr string) error {
 				default:
 				}
 
-				time.Sleep(2 * time.Millisecond)
+				time.Sleep(10 * time.Millisecond)
 			}
 		}()
 	}
