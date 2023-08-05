@@ -182,7 +182,7 @@ func guessRemotePort(remoteIP string) error {
 	// loop:
 	for {
 		if !gotFirstResponse.Load() {
-			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, rand.Intn(65536))
+			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, 1024+rand.Intn(65536-1024))
 			fmt.Printf("trying %s ...\n", remoteAddr)
 		}
 		dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
@@ -260,7 +260,7 @@ func guessLocalPort(remoteAddr string) error {
 				default:
 				}
 
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(200 * time.Millisecond)
 			}
 		}()
 	}
