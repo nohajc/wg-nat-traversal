@@ -119,20 +119,24 @@ func main() {
 
 func waitForResponse(conn *net.UDPConn, done chan bool) {
 	go func() {
-		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			return
+		for {
+			buf := make([]byte, 1024)
+			conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			n, err := conn.Read(buf)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				continue
+			}
+			// host, port, err := net.SplitHostPort(addr.String())
+			// if err != nil {
+			// 	fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			// 	return
+			// }
+			// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
+			fmt.Printf("got a response: %s\n", buf[0:n])
+			done <- true
+			break
 		}
-		// host, port, err := net.SplitHostPort(addr.String())
-		// if err != nil {
-		// 	fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		// 	return
-		// }
-		// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
-		fmt.Printf("got a response: %s\n", buf[0:n])
-		done <- true
 	}()
 }
 
