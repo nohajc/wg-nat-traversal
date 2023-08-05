@@ -100,7 +100,11 @@ func waitForResponse(conn net.PacketConn, done chan bool) {
 }
 
 func guessRemotePort(remoteIP string) error {
-	conn, err := net.ListenPacket("udp4", ":0")
+	localAddr, err := net.ResolveUDPAddr("udp4", ":0")
+	if err != nil {
+		return err
+	}
+	conn, err := net.ListenUDP("udp4", localAddr)
 	if err != nil {
 		return err
 	}
@@ -198,7 +202,11 @@ func guessLocalPort(remoteAddr string) error {
 }
 
 func simpleTest(remoteIP string) error {
-	conn, err := net.ListenPacket("udp4", ":0")
+	localAddr, err := net.ResolveUDPAddr("udp4", ":0")
+	if err != nil {
+		return err
+	}
+	conn, err := net.ListenUDP("udp4", localAddr)
 	if err != nil {
 		return err
 	}
@@ -238,7 +246,7 @@ loop:
 		default:
 		}
 
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(5 * time.Second)
 	}
 
 	return nil
