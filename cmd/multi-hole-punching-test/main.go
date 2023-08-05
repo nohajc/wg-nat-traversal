@@ -134,8 +134,8 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 			// }
 			// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
 			fmt.Printf("got a response: %s\n", buf[0:n])
-			done <- true
-			break
+			// done <- true
+			// break
 		}
 	}()
 }
@@ -280,7 +280,7 @@ func simpleTest(remoteIP string) error {
 
 loop:
 	for {
-		_, err = conn.WriteTo([]byte("Hello!"), dst)
+		_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s:%d!", pubIP, pubPort)), dst)
 		if err != nil {
 			return err
 		}
@@ -291,7 +291,7 @@ loop:
 		default:
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 
 	return nil
