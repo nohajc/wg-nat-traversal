@@ -117,20 +117,21 @@ func main() {
 	}
 }
 
-func waitForResponse(conn net.PacketConn, done chan bool) {
+func waitForResponse(conn *net.UDPConn, done chan bool) {
 	go func() {
 		buf := make([]byte, 1024)
-		n, addr, err := conn.ReadFrom(buf)
+		n, err := conn.Read(buf)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return
 		}
-		host, port, err := net.SplitHostPort(addr.String())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			return
-		}
-		fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
+		// host, port, err := net.SplitHostPort(addr.String())
+		// if err != nil {
+		// 	fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		// 	return
+		// }
+		// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
+		fmt.Printf("got a response: %s\n", buf[0:n])
 		done <- true
 	}()
 }
@@ -193,10 +194,14 @@ func guessLocalPort(remoteAddr string) error {
 	}
 
 	const portCount = 384
-	var conns [portCount]net.PacketConn
+	var conns [portCount]*net.UDPConn
 
 	for i := 0; i < portCount; {
-		conns[i], err = net.ListenPacket("udp4", fmt.Sprintf(":%d", 1024+rand.Intn(65536-1024)))
+		localAddr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf(":%d", 1024+rand.Intn(65536-1024)))
+		if err != nil {
+			return err
+		}
+		conns[i], err = net.ListenUDP("udp4", localAddr)
 		if err != nil {
 			continue
 		}
