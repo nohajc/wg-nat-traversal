@@ -83,7 +83,7 @@ func main() {
 
 func waitForResponse(conn net.PacketConn, done chan bool) {
 	go func() {
-		buf := make([]byte, 65536)
+		buf := make([]byte, 1024)
 		n, addr, err := conn.ReadFrom(buf)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -131,7 +131,7 @@ loop:
 		}
 
 		for i := 0; i < 10; i++ {
-			_, err = conn.WriteTo([]byte(remoteAddr), dst)
+			_, err = conn.WriteTo([]byte("Hello!"), dst)
 			if err != nil {
 				return err
 			}
@@ -179,7 +179,7 @@ func guessLocalPort(remoteAddr string) error {
 
 			for {
 				// for i := 0; i < 5; i++ {
-				_, err = conn.WriteTo([]byte(remoteAddr), dst)
+				_, err = conn.WriteTo([]byte("Hello!"), dst)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "error: %s\n", err)
 					return
@@ -235,7 +235,7 @@ func simpleTest(remoteIP string) error {
 
 loop:
 	for {
-		_, err = conn.WriteTo([]byte(remoteAddr), dst)
+		_, err = conn.WriteTo([]byte("Hello!"), dst)
 		if err != nil {
 			return err
 		}
