@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -121,10 +122,12 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 	go func() {
 		for {
 			buf := make([]byte, 1024)
-			conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+			conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 			n, err := conn.Read(buf)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				if !errors.Is(err, os.ErrDeadlineExceeded) {
+					fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				}
 				continue
 			}
 			// host, port, err := net.SplitHostPort(addr.String())
@@ -291,7 +294,7 @@ loop:
 		default:
 		}
 
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	return nil
