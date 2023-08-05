@@ -301,13 +301,14 @@ func guessLocalPort(remoteAddr string) error {
 	}
 	<-allDone
 
+	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+	return nil
+
 	var conn *net.UDPConn
 	for _, c := range conns {
 		if _, port, err := net.SplitHostPort(c.LocalAddr().String()); err == nil && port == strconv.Itoa(portInfo.LocalPort) {
-			// conn = c
-			// continue
-			fmt.Printf("Local addr: :%d", portInfo.LocalPort)
-			return nil
+			conn = c
+			continue
 		}
 		c.Close()
 	}
