@@ -179,7 +179,7 @@ func GuessRemotePort(remoteIP string) (int, error) {
 	waitForResponse(conn, resolved, acked)
 
 	var portInfo PortInfo
-	sleepDuration := 10 * time.Millisecond
+	sleepDuration := 5 * time.Millisecond
 	var remoteAddr string
 
 	message := "UNKNOWN"
@@ -199,7 +199,7 @@ func GuessRemotePort(remoteIP string) (int, error) {
 			return 0, err
 		}
 
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 10; i++ {
 			_, err = conn.WriteTo([]byte(message), dst)
 			if err != nil {
 				return 0, err
