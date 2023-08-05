@@ -205,12 +205,16 @@ func guessRemotePort(remoteIP string) error {
 	sleepDuration := 10 * time.Millisecond
 	var remoteAddr string
 
-loop:
-	for {
+	cnt := 5
+
+	for cnt > 0 {
 		if !gotFirstResponse.Load() {
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, 1024+rand.Intn(65536-1024))
 			fmt.Printf("trying %s ...\n", remoteAddr)
+		} else {
+			cnt--
 		}
+
 		dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
 		if err != nil {
 			return err
@@ -227,7 +231,6 @@ loop:
 		case portInfo = <-done:
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, portInfo.PeerPort)
 			sleepDuration = 50 * time.Millisecond
-			break loop
 		default:
 		}
 
@@ -301,9 +304,6 @@ func guessLocalPort(remoteAddr string) error {
 	}
 	<-allDone
 
-	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
-	return nil
-
 	var conn *net.UDPConn
 	for _, c := range conns {
 		if _, port, err := net.SplitHostPort(c.LocalAddr().String()); err == nil && port == strconv.Itoa(portInfo.LocalPort) {
@@ -316,7 +316,9 @@ func guessLocalPort(remoteAddr string) error {
 		log.Fatal("Conn is nil")
 	}
 
-	for {
+	// send couple more packets so there's a higher chance
+	// the peer will receive at least one of them (TODO: proper ack)
+	for j := 0; j < 5; j++ {
 		for i := 0; i < 5; i++ {
 			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
 			if err != nil {
@@ -326,6 +328,9 @@ func guessLocalPort(remoteAddr string) error {
 
 		time.Sleep(50 * time.Millisecond)
 	}
+
+	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+	return nil
 }
 
 func simpleTest(remoteIP string) error {
