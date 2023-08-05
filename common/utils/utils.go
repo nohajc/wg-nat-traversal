@@ -183,12 +183,15 @@ func GuessRemotePort(remoteIP string) error {
 	var remoteAddr string
 
 	message := "UNKNOWN"
+	cnt := 10
+	wasAcked := false
 
-loop:
-	for {
+	for cnt > 0 {
 		if !gotFirstResponse.Load() {
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, 1024+rand.Intn(65536-1024))
 			fmt.Printf("trying %s ...\n", remoteAddr)
+		} else if wasAcked {
+			cnt--
 		}
 
 		dst, err := net.ResolveUDPAddr("udp", remoteAddr)
@@ -218,7 +221,7 @@ loop:
 		if message == "RESOLVED" {
 			select {
 			case <-acked:
-				break loop
+				wasAcked = true
 			default:
 			}
 		}
@@ -309,10 +312,8 @@ func GuessLocalPort(remoteAddr string) error {
 		log.Fatal("Conn is nil")
 	}
 
-	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+	fmt.Printf("Local addr: :%d\n", portInfo.LocalPort)
 
-	// send couple more packets so there's a higher chance
-	// the peer will receive at least one of them (TODO: proper ack)
 loop:
 	for {
 		for i := 0; i < 5; i++ {
@@ -330,7 +331,7 @@ loop:
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+	fmt.Printf("Local addr: :%d\n", portInfo.LocalPort)
 	conn.Close()
 	return nil
 }
