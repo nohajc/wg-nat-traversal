@@ -256,7 +256,7 @@ func guessLocalPort(remoteAddr string) error {
 
 				select {
 				case <-done:
-					// allDone <- true
+					allDone <- true
 				default:
 				}
 
