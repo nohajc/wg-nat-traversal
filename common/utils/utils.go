@@ -31,7 +31,7 @@ type CustomNet struct {
 }
 
 func (cn *CustomNet) Dial(network string, address string) (net.Conn, error) {
-	dst, err := net.ResolveUDPAddr("udp4", address)
+	dst, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
@@ -143,14 +143,15 @@ func waitForResponse(conn *net.UDPConn, done chan PortInfo) {
 }
 
 func GuessRemotePort(remoteIP string) error {
-	localAddr, err := net.ResolveUDPAddr("udp4", ":0")
+	localAddr, err := net.ResolveUDPAddr("udp", ":0")
 	if err != nil {
 		return err
 	}
-	conn, err := net.ListenUDP("udp4", localAddr)
+	conn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	pubIP, pubPort, err := GetPublicAddr(conn)
 	if err != nil {
@@ -178,7 +179,7 @@ func GuessRemotePort(remoteIP string) error {
 			cnt--
 		}
 
-		dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
+		dst, err := net.ResolveUDPAddr("udp", remoteAddr)
 		if err != nil {
 			return err
 		}
@@ -205,7 +206,7 @@ func GuessRemotePort(remoteIP string) error {
 }
 
 func GuessLocalPort(remoteAddr string) error {
-	dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
+	dst, err := net.ResolveUDPAddr("udp", remoteAddr)
 	if err != nil {
 		return err
 	}
@@ -214,11 +215,11 @@ func GuessLocalPort(remoteAddr string) error {
 	var conns [portCount]*net.UDPConn
 
 	for i := 0; i < portCount; {
-		localAddr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf(":%d", 1024+rand.Intn(65536-1024)))
+		localAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", 1024+rand.Intn(65536-1024)))
 		if err != nil {
 			return err
 		}
-		conns[i], err = net.ListenUDP("udp4", localAddr)
+		conns[i], err = net.ListenUDP("udp", localAddr)
 		if err != nil {
 			continue
 		}
@@ -295,15 +296,16 @@ func GuessLocalPort(remoteAddr string) error {
 	}
 
 	fmt.Printf("Local addr: :%d", portInfo.LocalPort)
+	conn.Close()
 	return nil
 }
 
 func SimpleTest(remoteIP string) error {
-	localAddr, err := net.ResolveUDPAddr("udp4", ":0")
+	localAddr, err := net.ResolveUDPAddr("udp", ":0")
 	if err != nil {
 		return err
 	}
-	conn, err := net.ListenUDP("udp4", localAddr)
+	conn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
 		return err
 	}
@@ -325,7 +327,7 @@ func SimpleTest(remoteIP string) error {
 
 	remoteAddr := fmt.Sprintf("%s:%d", remoteIP, remotePort)
 	fmt.Printf("trying %s ...\n", remoteAddr)
-	dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
+	dst, err := net.ResolveUDPAddr("udp", remoteAddr)
 	if err != nil {
 		return err
 	}
