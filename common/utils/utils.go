@@ -169,7 +169,7 @@ func GuessRemotePort(remoteIP string) error {
 	sleepDuration := 10 * time.Millisecond
 	var remoteAddr string
 
-	cnt := 5
+	cnt := 10
 
 	for cnt > 0 {
 		if !gotFirstResponse.Load() {
