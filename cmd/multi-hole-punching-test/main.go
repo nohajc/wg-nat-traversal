@@ -121,7 +121,7 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 	go func() {
 		for {
 			buf := make([]byte, 1024)
-			conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 			n, err := conn.Read(buf)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -291,7 +291,7 @@ loop:
 		default:
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	return nil
