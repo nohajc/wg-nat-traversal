@@ -142,11 +142,11 @@ func waitForResponse(conn *net.UDPConn, done chan PortInfo) {
 			conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 			n, peerAddr, err := conn.ReadFromUDP(buf)
 			if err != nil {
-				if !errors.Is(err, os.ErrDeadlineExceeded) {
-					fmt.Fprintf(os.Stderr, "error: %s\n", err)
-				}
 				if errors.Is(err, net.ErrClosed) {
 					break
+				}
+				if !errors.Is(err, os.ErrDeadlineExceeded) {
+					fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				}
 				continue
 			}
