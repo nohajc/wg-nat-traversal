@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/pion/stun"
@@ -126,6 +127,8 @@ func main() {
 	}
 }
 
+var gotFirstResponse atomic.Bool
+
 func waitForResponse(conn *net.UDPConn, done chan bool) {
 	go func() {
 		for {
@@ -145,7 +148,9 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 			// }
 			// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
 			log.Printf("%s sent a response: %s\n", peerAddr.String(), buf[0:n])
-			// done <- true
+			if gotFirstResponse.CompareAndSwap(false, true) {
+				done <- true
+			}
 			// break
 		}
 	}()
@@ -170,13 +175,16 @@ func guessRemotePort(remoteIP string) error {
 	fmt.Println("Press Enter to continue")
 	fmt.Scanln()
 
-	done := make(chan bool)
+	done := make(chan bool, 1)
 	waitForResponse(conn, done)
 
+	var remoteAddr string
 loop:
 	for {
-		remoteAddr := fmt.Sprintf("%s:%d", remoteIP, rand.Intn(65536))
-		fmt.Printf("trying %s ...\n", remoteAddr)
+		if !gotFirstResponse.Load() {
+			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, rand.Intn(65536))
+			fmt.Printf("trying %s ...\n", remoteAddr)
+		}
 		dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
 		if err != nil {
 			return err
@@ -234,7 +242,7 @@ func guessLocalPort(remoteAddr string) error {
 			conn := conns[idx]
 			fmt.Printf("trying %s ...\n", conn.LocalAddr().String())
 
-			done := make(chan bool)
+			done := make(chan bool, 1)
 			waitForResponse(conn, done)
 
 			for {
@@ -248,7 +256,7 @@ func guessLocalPort(remoteAddr string) error {
 
 				select {
 				case <-done:
-					allDone <- true
+					// allDone <- true
 				default:
 				}
 
@@ -283,7 +291,7 @@ func simpleTest(remoteIP string) error {
 
 	fmt.Printf("Sending packets to %s:%d ...\n", remoteIP, remotePort)
 
-	done := make(chan bool)
+	done := make(chan bool, 1)
 	waitForResponse(conn, done)
 
 	remoteAddr := fmt.Sprintf("%s:%d", remoteIP, remotePort)
@@ -293,7 +301,7 @@ func simpleTest(remoteIP string) error {
 		return err
 	}
 
-loop:
+	// loop:
 	for {
 		for i := 0; i < 5; i++ {
 			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s:%d!", pubIP, pubPort)), dst)
@@ -304,7 +312,7 @@ loop:
 
 		select {
 		case <-done:
-			break loop
+			// break loop
 		default:
 		}
 
