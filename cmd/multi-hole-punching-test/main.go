@@ -285,7 +285,9 @@ func guessLocalPort(remoteAddr string) error {
 				for i := 0; i < 5; i++ {
 					_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s!", pubIP)), dst)
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "error: %s\n", err)
+						if !errors.Is(err, net.ErrClosed) {
+							fmt.Fprintf(os.Stderr, "error: %s\n", err)
+						}
 						return
 					}
 				}
