@@ -9,16 +9,52 @@ import (
 	"time"
 
 	"github.com/pion/stun"
+	"github.com/pion/transport/v2/stdnet"
 )
 
-func getPublicAddr() (string, int, error) {
+type ReusedConn struct {
+	*net.UDPConn
+	remoteAddr net.Addr
+}
+
+func (rc *ReusedConn) Write(b []byte) (int, error) {
+	return rc.UDPConn.WriteTo(b, rc.remoteAddr)
+}
+
+type CustomNet struct {
+	*stdnet.Net
+	conn *net.UDPConn
+}
+
+func (cn *CustomNet) Dial(network string, address string) (net.Conn, error) {
+	dst, err := net.ResolveUDPAddr("udp4", address)
+	if err != nil {
+		return nil, err
+	}
+	return &ReusedConn{
+		UDPConn:    cn.conn,
+		remoteAddr: dst,
+	}, nil
+}
+
+func getPublicAddr(conn *net.UDPConn) (string, int, error) {
 	u, err := stun.ParseURI("stun:stun.l.google.com:19302")
 	if err != nil {
 		return "", 0, err
 	}
 
+	nw, err := stdnet.NewNet()
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to create net: %w", err)
+	}
+
 	// Creating a "connection" to STUN server.
-	c, err := stun.DialURI(u, &stun.DialConfig{})
+	c, err := stun.DialURI(u, &stun.DialConfig{
+		Net: &CustomNet{
+			Net:  nw,
+			conn: conn,
+		},
+	})
 	if err != nil {
 		return "", 0, err
 	}
@@ -109,7 +145,7 @@ func guessRemotePort(remoteIP string) error {
 		return err
 	}
 
-	pubIP, pubPort, err := getPublicAddr()
+	pubIP, pubPort, err := getPublicAddr(conn)
 	if err != nil {
 		return err
 	}
@@ -211,7 +247,7 @@ func simpleTest(remoteIP string) error {
 		return err
 	}
 
-	pubIP, pubPort, err := getPublicAddr()
+	pubIP, pubPort, err := getPublicAddr(conn)
 	if err != nil {
 		return err
 	}
