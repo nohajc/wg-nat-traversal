@@ -21,6 +21,39 @@ type STUNSrv string
 const STUN_Google STUNSrv = "stun:stun.l.google.com:19302"
 const STUN_VoipGATE STUNSrv = "stun.voipgate.com:3478"
 
+type NAT int
+
+const (
+	NAT_EASY NAT = iota
+	NAT_HARD
+)
+
+var natNames = [...]string{"easy", "hard"}
+
+func (n NAT) String() string {
+	if int(n) >= len(natNames) {
+		return ""
+	}
+	return natNames[n]
+}
+
+// MarshalText implements the encoding.TextMarshaler interface.
+func (n NAT) MarshalText() ([]byte, error) {
+	return []byte(n.String()), nil
+}
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
+func (n *NAT) UnmarshalText(b []byte) error {
+	aux := string(b)
+	for i, name := range natNames {
+		if name == aux {
+			*n = NAT(i)
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid locality type %q", aux)
+}
+
 type ReusedConn struct {
 	*net.UDPConn
 	remoteAddr net.Addr
@@ -48,6 +81,36 @@ func (cn *CustomNet) Dial(network string, address string) (net.Conn, error) {
 
 func GetPublicAddr(conn *net.UDPConn) (string, int, error) {
 	return STUN_Google.getPublicAddr(conn)
+}
+
+type STUNInfo struct {
+	PublicIP   string `json:"public_ip"`
+	PublicPort int    `json:"public_port"`
+	NATKind    NAT    `json:"nat_kind"`
+}
+
+func GetPublicAddrWithNATKind(conn *net.UDPConn) (*STUNInfo, error) {
+	_, port1, err := STUN_Google.getPublicAddr(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	ip, port2, err := STUN_VoipGATE.getPublicAddr(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	natKind := NAT_EASY
+
+	if port1 != port2 {
+		natKind = NAT_HARD
+	}
+
+	return &STUNInfo{
+		PublicIP:   ip,
+		PublicPort: port1,
+		NATKind:    natKind,
+	}, nil
 }
 
 func (s STUNSrv) getPublicAddr(conn *net.UDPConn) (string, int, error) {
