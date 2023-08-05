@@ -16,6 +16,11 @@ import (
 	"github.com/pion/transport/v2/stdnet"
 )
 
+type STUNSrv string
+
+const STUN_Google STUNSrv = "stun:stun.l.google.com:19302"
+const STUN_VoipGATE STUNSrv = "stun.voipgate.com:3478"
+
 type ReusedConn struct {
 	*net.UDPConn
 	remoteAddr net.Addr
@@ -42,7 +47,11 @@ func (cn *CustomNet) Dial(network string, address string) (net.Conn, error) {
 }
 
 func GetPublicAddr(conn *net.UDPConn) (string, int, error) {
-	u, err := stun.ParseURI("stun:stun.l.google.com:19302")
+	return STUN_Google.getPublicAddr(conn)
+}
+
+func (s STUNSrv) getPublicAddr(conn *net.UDPConn) (string, int, error) {
+	u, err := stun.ParseURI(string(s))
 	if err != nil {
 		return "", 0, err
 	}
@@ -62,7 +71,7 @@ func GetPublicAddr(conn *net.UDPConn) (string, int, error) {
 	}
 
 	// Creating a "connection" to STUN server.
-	c, err := stun.DialURI(u, &stun.DialConfig{
+	client, err := stun.DialURI(u, &stun.DialConfig{
 		Net: net,
 	})
 	if err != nil {
@@ -75,7 +84,7 @@ func GetPublicAddr(conn *net.UDPConn) (string, int, error) {
 	var port int
 	var cbErr error
 	// Sending request to STUN server, waiting for response message.
-	if err := c.Do(message, func(res stun.Event) {
+	if err := client.Do(message, func(res stun.Event) {
 		if res.Error != nil {
 			panic(res.Error)
 		}
