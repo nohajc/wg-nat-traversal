@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -136,7 +137,7 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 			// 	return
 			// }
 			// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
-			fmt.Printf("got a response: %s\n", buf[0:n])
+			log.Printf("got a response: %s\n", buf[0:n])
 			// done <- true
 			// break
 		}
@@ -283,9 +284,11 @@ func simpleTest(remoteIP string) error {
 
 loop:
 	for {
-		_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s:%d!", pubIP, pubPort)), dst)
-		if err != nil {
-			return err
+		for i := 0; i < 5; i++ {
+			_, err = conn.WriteTo([]byte(fmt.Sprintf("Hello from %s:%d!", pubIP, pubPort)), dst)
+			if err != nil {
+				return err
+			}
 		}
 
 		select {
@@ -294,7 +297,7 @@ loop:
 		default:
 		}
 
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return nil
