@@ -72,8 +72,9 @@ func main() {
 	} else if natType == "hard" {
 		err = guessLocalPort(remoteAddr)
 	} else {
-		fmt.Fprintln(os.Stderr, "error: invalid NAT type; specify easy or hard")
-		os.Exit(1)
+		// fmt.Fprintln(os.Stderr, "error: invalid NAT type; specify easy or hard")
+		// os.Exit(1)
+		err = simpleTest(remoteAddr)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -151,14 +152,22 @@ func guessLocalPort(remoteAddr string) error {
 		return err
 	}
 
+	const portCount = 384
+	var conns [portCount]net.PacketConn
+
+	for i := 0; i < portCount; {
+		conns[i], err = net.ListenPacket("udp4", fmt.Sprintf(":%d", 1024+rand.Intn(65536-1024)))
+		if err != nil {
+			continue
+		}
+		i++
+	}
+
 	allDone := make(chan bool)
-	for i := 0; i < 384; i++ {
+	for i := 0; i < portCount; i++ {
+		idx := i
 		go func() {
-			conn, err := net.ListenPacket("udp4", ":0")
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %s\n", err)
-				return
-			}
+			conn := conns[idx]
 			fmt.Printf("trying %s ...\n", conn.LocalAddr().String())
 
 			done := make(chan bool)
@@ -184,6 +193,53 @@ func guessLocalPort(remoteAddr string) error {
 		}()
 	}
 	<-allDone
+
+	return nil
+}
+
+func simpleTest(remoteIP string) error {
+	conn, err := net.ListenPacket("udp4", ":0")
+	if err != nil {
+		return err
+	}
+
+	pubIP, pubPort, err := getPublicAddr()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), pubIP, pubPort)
+	fmt.Println("Enter remote port:")
+	var remotePort int
+	fmt.Scanln(&remotePort)
+
+	fmt.Printf("Sending packets to %s:%d ...\n", remoteIP, remotePort)
+
+	done := make(chan bool)
+	waitForResponse(conn, done)
+
+	remoteAddr := fmt.Sprintf("%s:%d", remoteIP, remotePort)
+	fmt.Printf("trying %s ...\n", remoteAddr)
+	dst, err := net.ResolveUDPAddr("udp4", remoteAddr)
+	if err != nil {
+		return err
+	}
+
+loop:
+	for {
+		_, err = conn.WriteTo([]byte(remoteAddr), dst)
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-done:
+			break loop
+		default:
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
 
 	return nil
 }
