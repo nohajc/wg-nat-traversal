@@ -129,7 +129,7 @@ func main() {
 
 var gotFirstResponse atomic.Bool
 
-func waitForResponse(conn *net.UDPConn, done chan bool) {
+func waitForResponse(conn *net.UDPConn, done chan int) {
 	go func() {
 		for {
 			buf := make([]byte, 1024)
@@ -149,7 +149,7 @@ func waitForResponse(conn *net.UDPConn, done chan bool) {
 			// fmt.Printf("got a response from %s:%s with message %s\n", host, port, buf[0:n])
 			log.Printf("%s sent a response: %s\n", peerAddr.String(), buf[0:n])
 			if gotFirstResponse.CompareAndSwap(false, true) {
-				done <- true
+				done <- peerAddr.Port
 			}
 			// break
 		}
@@ -175,11 +175,11 @@ func guessRemotePort(remoteIP string) error {
 	fmt.Println("Press Enter to continue")
 	fmt.Scanln()
 
-	done := make(chan bool, 1)
+	done := make(chan int, 1)
 	waitForResponse(conn, done)
 
 	var remoteAddr string
-loop:
+	// loop:
 	for {
 		if !gotFirstResponse.Load() {
 			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, rand.Intn(65536))
@@ -198,15 +198,15 @@ loop:
 		}
 
 		select {
-		case <-done:
-			break loop
+		case port := <-done:
+			remoteAddr = fmt.Sprintf("%s:%d", remoteIP, port)
 		default:
 		}
 
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	return nil
+	// return nil
 }
 
 func guessLocalPort(remoteAddr string) error {
@@ -242,7 +242,7 @@ func guessLocalPort(remoteAddr string) error {
 			conn := conns[idx]
 			fmt.Printf("trying %s ...\n", conn.LocalAddr().String())
 
-			done := make(chan bool, 1)
+			done := make(chan int, 1)
 			waitForResponse(conn, done)
 
 			for {
@@ -256,7 +256,7 @@ func guessLocalPort(remoteAddr string) error {
 
 				select {
 				case <-done:
-					allDone <- true
+					// allDone <- true
 				default:
 				}
 
@@ -291,7 +291,7 @@ func simpleTest(remoteIP string) error {
 
 	fmt.Printf("Sending packets to %s:%d ...\n", remoteIP, remotePort)
 
-	done := make(chan bool, 1)
+	done := make(chan int, 1)
 	waitForResponse(conn, done)
 
 	remoteAddr := fmt.Sprintf("%s:%d", remoteIP, remotePort)
@@ -319,5 +319,5 @@ func simpleTest(remoteIP string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return nil
+	// return nil
 }
