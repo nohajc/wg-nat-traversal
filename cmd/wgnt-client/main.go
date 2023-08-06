@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nohajc/wg-nat-traversal/common/nat"
+	"github.com/nohajc/wg-nat-traversal/common/wireguard"
 )
 
 func newConn() (*net.UDPConn, error) {
@@ -84,11 +85,32 @@ func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 	}
 }
 
-func setWireguardPorts(peerIP string, peerPort int, listenPort int) error {
+func setWireguardPorts(wgDevice string, peerIP string, peerPort int, listenPort int) error {
 	fmt.Println("setWireguardPorts:")
 	fmt.Printf("- peer: %s:%d\n", peerIP, peerPort)
 	fmt.Printf("- local listen port: %d\n", listenPort)
-	return nil // TODO
+
+	wgClient, err := wireguard.NewWgClient(wgDevice)
+	if err != nil {
+		return err
+	}
+
+	peer, err := wgClient.FindPeerByRemoteIP(peerIP)
+	if err != nil {
+		return err
+	}
+
+	err = wgClient.SetPeerRemotePort(peer, peerIP, peerPort)
+	if err != nil {
+		return err
+	}
+
+	err = wgClient.SetListenPort(listenPort)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type STUNParams struct {
@@ -162,17 +184,22 @@ func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
 }
 
 func main() {
-	var peerHost, serverHost string
+	var peerHost, serverHost, wgDevice string
 	flag.StringVar(&peerHost, "p", "", "peer IP/hostname")
 	flag.StringVar(&serverHost, "s", "", "server IP/hostname")
+	flag.StringVar(&wgDevice, "w", "", "Wireguard interface")
 	flag.Parse()
 
 	if peerHost == "" {
-		fmt.Fprintf(os.Stderr, "missing PEER_IP")
+		fmt.Fprintf(os.Stderr, "missing peer IP/hostname")
 		os.Exit(1)
 	}
 	if serverHost == "" {
-		fmt.Fprintf(os.Stderr, "missing SERVER_IP")
+		fmt.Fprintf(os.Stderr, "missing server IP/hostname")
+		os.Exit(1)
+	}
+	if wgDevice == "" {
+		fmt.Fprintf(os.Stderr, "missing Wireguard interface")
 		os.Exit(1)
 	}
 
@@ -182,7 +209,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = setWireguardPorts(params.remote.PublicIP, params.remote.PublicPort, params.localPrivPort)
+	err = setWireguardPorts(wgDevice, params.remote.PublicIP, params.remote.PublicPort, params.localPrivPort)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 		os.Exit(1)
