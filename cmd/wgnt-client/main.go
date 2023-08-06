@@ -86,7 +86,7 @@ func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 
 func setWireguardPorts(peerIP string, peerPort int, listenPort int) error {
 	fmt.Println("setWireguardPorts:")
-	fmt.Printf("- peer: %s:%d", peerIP, peerPort)
+	fmt.Printf("- peer: %s:%d\n", peerIP, peerPort)
 	fmt.Printf("- local listen port: %d\n", listenPort)
 	return nil // TODO
 }
@@ -125,7 +125,7 @@ func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server error: %w", err)
 	}
-	fmt.Printf("%s:%d - NAT type: %s\n", peerInfo.PublicIP, peerInfo.PublicPort, peerInfo.NATKind)
+	fmt.Printf("peer %s:%d - NAT type: %s\n", peerInfo.PublicIP, peerInfo.PublicPort, peerInfo.NATKind)
 
 	if stunInfo.NATKind == nat.NAT_HARD && peerInfo.NATKind == nat.NAT_HARD {
 		return nil, errors.New("both peers are behind symmetric NAT, hole punching not feasible; exiting")
