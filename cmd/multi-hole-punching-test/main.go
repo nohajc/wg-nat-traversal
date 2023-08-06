@@ -26,7 +26,7 @@ func main() {
 
 	var err error
 	if natType == "easy" {
-		_, err = utils.GuessRemotePort(remoteAddr)
+		_, err = utils.GuessRemotePort(remoteAddr, utils.Interactive(true))
 	} else if natType == "hard" {
 		_, err = utils.GuessLocalPort(remoteAddr)
 	} else {

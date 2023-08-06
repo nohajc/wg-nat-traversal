@@ -19,7 +19,8 @@ import (
 type STUNSrv string
 
 const STUN_Google STUNSrv = "stun:stun.l.google.com:19302"
-const STUN_VoipGATE STUNSrv = "stun.voipgate.com:3478"
+const STUN_Google1 STUNSrv = "stun:stun1.l.google.com:19302"
+const STUN_VoipGATE STUNSrv = "stun:stun.voipgate.com:3478"
 
 type NAT int
 
@@ -63,12 +64,19 @@ func (rc *ReusedConn) Write(b []byte) (int, error) {
 	return rc.UDPConn.WriteTo(b, rc.remoteAddr)
 }
 
+func (rc *ReusedConn) Close() error {
+	rc.UDPConn.SetReadDeadline(time.Now())
+	return nil
+}
+
 type CustomNet struct {
 	*stdnet.Net
 	conn *net.UDPConn
 }
 
 func (cn *CustomNet) Dial(network string, address string) (net.Conn, error) {
+	cn.conn.SetReadDeadline(time.Time{})
+
 	dst, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
@@ -94,11 +102,13 @@ func GetPublicAddrWithNATKind(conn *net.UDPConn) (*STUNInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("port1: %d\n", port1)
 
 	ip, port2, err := STUN_VoipGATE.getPublicAddr(conn)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("port2: %d\n", port2)
 
 	natKind := NAT_EASY
 
@@ -133,6 +143,7 @@ func (s STUNSrv) getPublicAddr(conn *net.UDPConn) (string, int, error) {
 		}
 	}
 
+	log.Printf("connecting to %s", u)
 	// Creating a "connection" to STUN server.
 	client, err := stun.DialURI(u, &stun.DialConfig{
 		Net: net,
@@ -140,16 +151,20 @@ func (s STUNSrv) getPublicAddr(conn *net.UDPConn) (string, int, error) {
 	if err != nil {
 		return "", 0, err
 	}
+	defer client.Close()
+
 	// Building binding request with random transaction id.
 	message := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
 
 	var IP string
 	var port int
 	var cbErr error
+
 	// Sending request to STUN server, waiting for response message.
 	if err := client.Do(message, func(res stun.Event) {
 		if res.Error != nil {
-			panic(res.Error)
+			cbErr = err
+			return
 		}
 		// Decoding XOR-MAPPED-ADDRESS attribute from message.
 		var xorAddr stun.XORMappedAddress
@@ -162,6 +177,7 @@ func (s STUNSrv) getPublicAddr(conn *net.UDPConn) (string, int, error) {
 	}); err != nil {
 		return "", 0, err
 	}
+
 	if cbErr != nil {
 		return "", 0, err
 	}
@@ -217,25 +233,70 @@ func waitForResponse(conn *net.UDPConn, resolved chan PortInfo, acked chan bool)
 	}()
 }
 
-func GuessRemotePort(remoteIP string) (int, error) {
-	localAddr, err := net.ResolveUDPAddr("udp", ":0")
-	if err != nil {
-		return 0, err
-	}
-	conn, err := net.ListenUDP("udp", localAddr)
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
+type clientCfg struct {
+	conn        *net.UDPConn
+	pubIP       string
+	pubPort     int
+	interactive bool
+}
 
-	pubIP, pubPort, err := GetPublicAddr(conn)
-	if err != nil {
-		return 0, err
+type Option func(*clientCfg)
+
+func WithConn(conn *net.UDPConn) Option {
+	return func(cc *clientCfg) {
+		cc.conn = conn
+	}
+}
+
+func WithPubAddr(pubIP string, pubPort int) Option {
+	return func(cc *clientCfg) {
+		cc.pubIP = pubIP
+		cc.pubPort = pubPort
+	}
+}
+
+func Interactive(i bool) Option {
+	return func(cc *clientCfg) {
+		cc.interactive = i
+	}
+}
+
+func GuessRemotePort(remoteIP string, opts ...Option) (int, error) {
+	var cc clientCfg
+	for _, opt := range opts {
+		opt(&cc)
+	}
+	conn := cc.conn
+
+	if conn == nil {
+		localAddr, err := net.ResolveUDPAddr("udp", ":0")
+		if err != nil {
+			return 0, err
+		}
+
+		conn, err = net.ListenUDP("udp", localAddr)
+		if err != nil {
+			return 0, err
+		}
+		defer conn.Close()
 	}
 
-	fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), pubIP, pubPort)
-	fmt.Println("Press Enter to continue")
-	fmt.Scanln()
+	pubIP := cc.pubIP
+	pubPort := cc.pubPort
+
+	if len(pubIP) == 0 {
+		var err error
+		pubIP, pubPort, err = GetPublicAddr(conn)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	if cc.interactive {
+		fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), pubIP, pubPort)
+		fmt.Println("Press Enter to continue")
+		fmt.Scanln()
+	}
 
 	resolved := make(chan PortInfo, 1)
 	acked := make(chan bool, 1)
