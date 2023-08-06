@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -84,6 +84,65 @@ func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 	}
 }
 
+func setWireguardPorts(peerIP string, peerPort int, listenPort int) error {
+	fmt.Printf("local listen port: %d\n", listenPort)
+	return nil // TODO
+}
+
+type STUNParams struct {
+	localPrivPort int
+	local         nat.STUNInfo
+	remote        nat.STUNInfo
+}
+
+func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
+	conn, err := newConn()
+	if err != nil {
+		return nil, fmt.Errorf("connection error: %w", err)
+	}
+	defer conn.Close()
+
+	stunInfo, err := nat.GetPublicAddrWithNATKind(conn)
+	if err != nil {
+		return nil, fmt.Errorf("STUN error: %w", err)
+	}
+
+	fmt.Printf("NAT type: %s\n", stunInfo.NATKind)
+	if stunInfo.NATKind == nat.NAT_EASY {
+		fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), stunInfo.PublicIP, stunInfo.PublicPort)
+	} else {
+		fmt.Printf("%s -> %s:?\n", conn.LocalAddr().String(), stunInfo.PublicIP)
+	}
+
+	client := NewClient(serverHost)
+	err = client.PublishPeerInfo(stunInfo)
+	if err != nil {
+		return nil, fmt.Errorf("server error: %w", err)
+	}
+
+	peerInfo, err := client.WaitForPeerInfo(peerHost)
+	if err != nil {
+		return nil, fmt.Errorf("server error: %w", err)
+	}
+	fmt.Printf("%s:%d - NAT type: %s\n", peerInfo.PublicIP, peerInfo.PublicPort, peerInfo.NATKind)
+
+	if stunInfo.NATKind == nat.NAT_HARD && peerInfo.NATKind == nat.NAT_HARD {
+		return nil, errors.New("both peers are behind symmetric NAT, hole punching not feasible; exiting")
+	}
+
+	if stunInfo.NATKind == nat.NAT_HARD || peerInfo.NATKind == nat.NAT_HARD {
+		// TODO: guess remote or local port
+	}
+
+	// else EASY && EASY - nothing to do
+
+	return &STUNParams{
+		localPrivPort: conn.LocalAddr().(*net.UDPAddr).Port,
+		local:         *stunInfo,
+		remote:        *peerInfo,
+	}, nil
+}
+
 func main() {
 	var peerHost, serverHost string
 	flag.StringVar(&peerHost, "p", "", "peer IP/hostname")
@@ -99,33 +158,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := newConn()
+	params, err := resolvePorts(peerHost, serverHost)
 	if err != nil {
-		log.Fatalf("connection error: %v", err)
-	}
-	defer conn.Close()
-
-	stunInfo, err := nat.GetPublicAddrWithNATKind(conn)
-	if err != nil {
-		log.Fatalf("STUN error: %v", err)
+		fmt.Fprintf(os.Stderr, "%v", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("NAT type: %s\n", stunInfo.NATKind)
-	if stunInfo.NATKind == nat.NAT_EASY {
-		fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), stunInfo.PublicIP, stunInfo.PublicPort)
-	} else {
-		fmt.Printf("%s -> %s:?\n", conn.LocalAddr().String(), stunInfo.PublicIP)
-	}
-
-	client := NewClient(serverHost)
-	err = client.PublishPeerInfo(stunInfo)
+	err = setWireguardPorts(params.remote.PublicIP, params.remote.PublicPort, params.localPrivPort)
 	if err != nil {
-		log.Fatalf("Server error: %v", err)
+		fmt.Fprintf(os.Stderr, "%v", err)
+		os.Exit(1)
 	}
-
-	peerInfo, err := client.WaitForPeerInfo(peerHost)
-	if err != nil {
-		log.Fatalf("Server error: %v", err)
-	}
-	fmt.Printf("%s:%d - NAT type: %s\n", peerInfo.PublicIP, peerInfo.PublicPort, peerInfo.NATKind)
 }

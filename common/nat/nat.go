@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -206,16 +205,7 @@ func waitForResponse(conn *net.UDPConn, resolved chan PortInfo, acked chan bool)
 
 			log.Printf("%s sent a response: %s\n", peerAddr.String(), buf[0:n])
 			if gotFirstResponse.CompareAndSwap(false, true) {
-				_, localPortStr, err := net.SplitHostPort(conn.LocalAddr().String())
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error: %s\n", err)
-					return
-				}
-				localPort, err := strconv.Atoi(localPortStr)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error: %s\n", err)
-					return
-				}
+				localPort := conn.LocalAddr().(*net.UDPAddr).Port
 
 				resolved <- PortInfo{
 					PeerPort:  peerAddr.Port,
@@ -423,7 +413,7 @@ func GuessLocalPort(remoteAddr string) (int, error) {
 
 	var conn *net.UDPConn
 	for _, c := range conns {
-		if _, port, err := net.SplitHostPort(c.LocalAddr().String()); err == nil && port == strconv.Itoa(portInfo.LocalPort) {
+		if c.LocalAddr().(*net.UDPAddr).Port == portInfo.LocalPort {
 			conn = c
 			continue
 		}
