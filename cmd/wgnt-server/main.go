@@ -5,18 +5,26 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/nohajc/wg-nat-traversal/common/nat"
 )
 
 var peerTable = map[string]nat.STUNInfo{}
+var peerTableMu sync.Mutex
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		ip := r.URL.Query().Get("ip")
 		log.Printf("GET request with ip = %s", ip)
-		if peer, ok := peerTable[ip]; ok {
+
+		peerTableMu.Lock()
+		peer, ok := peerTable[ip]
+		peerTableMu.Unlock()
+
+		if ok {
 			enc := json.NewEncoder(w)
 			err := enc.Encode(&peer)
 			if err != nil {
@@ -48,7 +56,15 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// info.PublicIP = ip // TODO: uncomment after testing
+		peerTableMu.Lock()
 		peerTable[info.PublicIP] = info
+		peerTableMu.Unlock()
+
+		time.AfterFunc(20*time.Second, func() {
+			peerTableMu.Lock()
+			delete(peerTable, info.PublicIP)
+			peerTableMu.Unlock()
+		})
 	}
 }
 
