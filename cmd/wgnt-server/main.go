@@ -6,10 +6,10 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/nohajc/wg-nat-traversal/common/utils"
+	"github.com/nohajc/wg-nat-traversal/common/nat"
 )
 
-var peerTable = map[string]utils.STUNInfo{}
+var peerTable = map[string]nat.STUNInfo{}
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -38,7 +38,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("POST request from ip = %s", ip)
 
-		info := utils.STUNInfo{}
+		info := nat.STUNInfo{}
 		err = json.NewDecoder(r.Body).Decode(&info)
 		if err != nil {
 			log.Printf("json decode error: %v", err)

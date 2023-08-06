@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nohajc/wg-nat-traversal/common/utils"
+	"github.com/nohajc/wg-nat-traversal/common/nat"
 )
 
 func main() {
@@ -26,13 +26,13 @@ func main() {
 
 	var err error
 	if natType == "easy" {
-		_, err = utils.GuessRemotePort(remoteAddr, utils.Interactive(true))
+		_, err = nat.GuessRemotePort(remoteAddr, nat.Interactive(true))
 	} else if natType == "hard" {
-		_, err = utils.GuessLocalPort(remoteAddr)
+		_, err = nat.GuessLocalPort(remoteAddr)
 	} else {
 		// fmt.Fprintln(os.Stderr, "error: invalid NAT type; specify easy or hard")
 		// os.Exit(1)
-		err = utils.SimpleTest(remoteAddr)
+		err = nat.SimpleTest(remoteAddr)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)

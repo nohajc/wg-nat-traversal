@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/nohajc/wg-nat-traversal/common/utils"
+	"github.com/nohajc/wg-nat-traversal/common/nat"
 )
 
 func newConn() (*net.UDPConn, error) {
@@ -38,7 +38,7 @@ func NewClient(serverHost string) *Client {
 	}
 }
 
-func (c *Client) PublishPeerInfo(info *utils.STUNInfo) error {
+func (c *Client) PublishPeerInfo(info *nat.STUNInfo) error {
 	reqPayload, err := json.Marshal(info)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func (c *Client) PublishPeerInfo(info *utils.STUNInfo) error {
 	return nil
 }
 
-func (c *Client) GetPeerInfo(peerHost string) (*utils.STUNInfo, error) {
+func (c *Client) GetPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 	resp, err := http.Get(fmt.Sprintf("%s?ip=%s", c.ServerURL, peerHost))
 	if err != nil {
 		return nil, err
@@ -65,13 +65,13 @@ func (c *Client) GetPeerInfo(peerHost string) (*utils.STUNInfo, error) {
 	if resp.StatusCode == http.StatusNoContent {
 		return nil, nil
 	}
-	result := &utils.STUNInfo{}
+	result := &nat.STUNInfo{}
 	dec := json.NewDecoder(resp.Body)
 	err = dec.Decode(result)
 	return result, err
 }
 
-func (c *Client) WaitForPeerInfo(peerHost string) (*utils.STUNInfo, error) {
+func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 	for {
 		result, err := c.GetPeerInfo(peerHost)
 		if err != nil {
@@ -105,13 +105,13 @@ func main() {
 	}
 	defer conn.Close()
 
-	stunInfo, err := utils.GetPublicAddrWithNATKind(conn)
+	stunInfo, err := nat.GetPublicAddrWithNATKind(conn)
 	if err != nil {
 		log.Fatalf("STUN error: %v", err)
 	}
 
 	fmt.Printf("NAT type: %s\n", stunInfo.NATKind)
-	if stunInfo.NATKind == utils.NAT_EASY {
+	if stunInfo.NATKind == nat.NAT_EASY {
 		fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), stunInfo.PublicIP, stunInfo.PublicPort)
 	} else {
 		fmt.Printf("%s -> %s:?\n", conn.LocalAddr().String(), stunInfo.PublicIP)
@@ -127,5 +127,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
-	fmt.Printf("%s:%d - NAT: %s\n", peerInfo.PublicIP, peerInfo.PublicPort, peerInfo.NATKind)
+	fmt.Printf("%s:%d - NAT type: %s\n", peerInfo.PublicIP, peerInfo.PublicPort, peerInfo.NATKind)
 }
