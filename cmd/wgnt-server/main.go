@@ -60,6 +60,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 		peerTable[info.PublicIP] = info
 		peerTableMu.Unlock()
 
+		// TODO: proper TTL - this is incorrect if an existing key is updated
 		time.AfterFunc(20*time.Second, func() {
 			peerTableMu.Lock()
 			delete(peerTable, info.PublicIP)

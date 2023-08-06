@@ -85,13 +85,14 @@ func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 }
 
 func setWireguardPorts(peerIP string, peerPort int, listenPort int) error {
-	fmt.Printf("local listen port: %d\n", listenPort)
+	fmt.Println("setWireguardPorts:")
+	fmt.Printf("- peer: %s:%d", peerIP, peerPort)
+	fmt.Printf("- local listen port: %d\n", listenPort)
 	return nil // TODO
 }
 
 type STUNParams struct {
 	localPrivPort int
-	local         nat.STUNInfo
 	remote        nat.STUNInfo
 }
 
@@ -130,15 +131,32 @@ func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
 		return nil, errors.New("both peers are behind symmetric NAT, hole punching not feasible; exiting")
 	}
 
-	if stunInfo.NATKind == nat.NAT_HARD || peerInfo.NATKind == nat.NAT_HARD {
-		// TODO: guess remote or local port
-	}
+	localPrivPort := conn.LocalAddr().(*net.UDPAddr).Port
 
-	// else EASY && EASY - nothing to do
+	if stunInfo.NATKind == nat.NAT_HARD || peerInfo.NATKind == nat.NAT_HARD {
+		if stunInfo.NATKind == nat.NAT_EASY {
+			remotePort, err := nat.GuessRemotePort(
+				peerInfo.PublicIP, nat.WithConn(conn),
+				nat.WithPubAddr(stunInfo.PublicIP, stunInfo.PublicPort),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("guess remote port error: %w", err)
+			}
+			peerInfo.PublicPort = remotePort
+		} else {
+			localPort, err := nat.GuessLocalPort(
+				fmt.Sprintf("%s:%d", peerInfo.PublicIP, peerInfo.PublicPort),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("guess local port error: %w", err)
+			}
+			localPrivPort = localPort
+		}
+	}
+	// else EASY && EASY - nothing to do, ports already correct
 
 	return &STUNParams{
-		localPrivPort: conn.LocalAddr().(*net.UDPAddr).Port,
-		local:         *stunInfo,
+		localPrivPort: localPrivPort,
 		remote:        *peerInfo,
 	}, nil
 }
