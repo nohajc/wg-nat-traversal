@@ -34,7 +34,7 @@ func main() {
 		log.Fatalf("STUN error: %v", err)
 	}
 
-	fmt.Printf("NAT type: %s", stunInfo.NATKind)
+	fmt.Printf("NAT type: %s\n", stunInfo.NATKind)
 	if stunInfo.NATKind == utils.NAT_EASY {
 		fmt.Printf("%s -> %s:%d\n", conn.LocalAddr().String(), stunInfo.PublicIP, stunInfo.PublicPort)
 	}

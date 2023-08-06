@@ -102,13 +102,11 @@ func GetPublicAddrWithNATKind(conn *net.UDPConn) (*STUNInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("port1: %d\n", port1)
 
 	ip, port2, err := STUN_VoipGATE.getPublicAddr(conn)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("port2: %d\n", port2)
 
 	natKind := NAT_EASY
 
@@ -143,7 +141,6 @@ func (s STUNSrv) getPublicAddr(conn *net.UDPConn) (string, int, error) {
 		}
 	}
 
-	log.Printf("connecting to %s", u)
 	// Creating a "connection" to STUN server.
 	client, err := stun.DialURI(u, &stun.DialConfig{
 		Net: net,
