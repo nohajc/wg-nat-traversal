@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -15,13 +14,13 @@ var peerTable = map[string]nat.STUNInfo{}
 var peerTableMu sync.Mutex
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
+	pubKey := r.URL.Query().Get("pubkey")
 	switch r.Method {
 	case http.MethodGet:
-		ip := r.URL.Query().Get("ip")
-		log.Printf("GET request with ip = %s", ip)
+		log.Printf("GET request with pubkey = %s", pubKey)
 
 		peerTableMu.Lock()
-		peer, ok := peerTable[ip]
+		peer, ok := peerTable[pubKey]
 		peerTableMu.Unlock()
 
 		if ok {
@@ -37,17 +36,10 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 		}
 	case http.MethodPost:
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			log.Printf("host port split error: %v", err)
-			st := http.StatusInternalServerError
-			http.Error(w, http.StatusText(st), st)
-			return
-		}
-		log.Printf("POST request from ip = %s", ip)
+		log.Printf("POST request with pubkey = %s", pubKey)
 
 		info := nat.STUNInfo{}
-		err = json.NewDecoder(r.Body).Decode(&info)
+		err := json.NewDecoder(r.Body).Decode(&info)
 		if err != nil {
 			log.Printf("json decode error: %v", err)
 			st := http.StatusBadRequest
@@ -55,15 +47,14 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// info.PublicIP = ip // TODO: uncomment after testing
 		peerTableMu.Lock()
-		peerTable[info.PublicIP] = info
+		peerTable[pubKey] = info
 		peerTableMu.Unlock()
 
 		// TODO: proper TTL - this is incorrect if an existing key is updated
 		time.AfterFunc(20*time.Second, func() {
 			peerTableMu.Lock()
-			delete(peerTable, info.PublicIP)
+			delete(peerTable, pubKey)
 			peerTableMu.Unlock()
 		})
 	}

@@ -39,12 +39,15 @@ func NewClient(serverHost string) *Client {
 	}
 }
 
-func (c *Client) PublishPeerInfo(info *nat.STUNInfo) error {
+func (c *Client) PublishPeerInfo(pubKey string, info *nat.STUNInfo) error {
 	reqPayload, err := json.Marshal(info)
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(c.ServerURL, "application/json", bytes.NewReader(reqPayload))
+	resp, err := http.Post(
+		fmt.Sprintf("%s?pubkey=%s", c.ServerURL, pubKey),
+		"application/json", bytes.NewReader(reqPayload),
+	)
 	if err != nil {
 		return err
 	}
@@ -56,8 +59,8 @@ func (c *Client) PublishPeerInfo(info *nat.STUNInfo) error {
 	return nil
 }
 
-func (c *Client) GetPeerInfo(peerHost string) (*nat.STUNInfo, error) {
-	resp, err := http.Get(fmt.Sprintf("%s?ip=%s", c.ServerURL, peerHost))
+func (c *Client) GetPeerInfo(peerPubKey string) (*nat.STUNInfo, error) {
+	resp, err := http.Get(fmt.Sprintf("%s?pubkey=%s", c.ServerURL, peerPubKey))
 	if err != nil {
 		return nil, err
 	}
@@ -72,9 +75,9 @@ func (c *Client) GetPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 	return result, err
 }
 
-func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
+func (c *Client) WaitForPeerInfo(peerPubKey string) (*nat.STUNInfo, error) {
 	for {
-		result, err := c.GetPeerInfo(peerHost)
+		result, err := c.GetPeerInfo(peerPubKey)
 		if err != nil {
 			return nil, err
 		}
@@ -85,27 +88,17 @@ func (c *Client) WaitForPeerInfo(peerHost string) (*nat.STUNInfo, error) {
 	}
 }
 
-func setWireguardPorts(wgDevice string, peerIP string, peerPort int, listenPort int) error {
+func setWireguardPorts(wgClient *wireguard.WgClient, peerPubKey string, params *STUNParams) error {
 	fmt.Println("setWireguardPorts:")
-	fmt.Printf("- peer: %s:%d\n", peerIP, peerPort)
-	fmt.Printf("- local listen port: %d\n", listenPort)
+	fmt.Printf("- peer: %s:%d\n", params.remote.PublicIP, params.remote.PublicPort)
+	fmt.Printf("- local listen port: %d\n", params.localPrivPort)
 
-	wgClient, err := wireguard.NewWgClient(wgDevice)
+	err := wgClient.SetPeerRemotePort(peerPubKey, params.remote.PublicIP, params.remote.PublicPort)
 	if err != nil {
 		return err
 	}
 
-	peer, err := wgClient.FindPeerByRemoteIP(peerIP)
-	if err != nil {
-		return err
-	}
-
-	err = wgClient.SetPeerRemotePort(peer, peerIP, peerPort)
-	if err != nil {
-		return err
-	}
-
-	err = wgClient.SetListenPort(listenPort)
+	err = wgClient.SetListenPort(params.localPrivPort)
 	if err != nil {
 		return err
 	}
@@ -118,7 +111,7 @@ type STUNParams struct {
 	remote        nat.STUNInfo
 }
 
-func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
+func resolvePorts(wgClient *wireguard.WgClient, peerPubKey string, serverHost string) (*STUNParams, error) {
 	conn, err := newConn()
 	if err != nil {
 		return nil, fmt.Errorf("connection error: %w", err)
@@ -137,13 +130,18 @@ func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
 		fmt.Printf("%s -> %s:?\n", conn.LocalAddr().String(), stunInfo.PublicIP)
 	}
 
+	pubKey, err := wgClient.GetInterfacePublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("error getting wg interface public key: %w", err)
+	}
+
 	client := NewClient(serverHost)
-	err = client.PublishPeerInfo(stunInfo)
+	err = client.PublishPeerInfo(pubKey, stunInfo)
 	if err != nil {
 		return nil, fmt.Errorf("server error: %w", err)
 	}
 
-	peerInfo, err := client.WaitForPeerInfo(peerHost)
+	peerInfo, err := client.WaitForPeerInfo(peerPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("server error: %w", err)
 	}
@@ -184,16 +182,11 @@ func resolvePorts(peerHost, serverHost string) (*STUNParams, error) {
 }
 
 func main() {
-	var peerHost, serverHost, wgDevice string
-	flag.StringVar(&peerHost, "p", "", "peer IP/hostname")
+	var serverHost, wgDevice string
 	flag.StringVar(&serverHost, "s", "", "server IP/hostname")
 	flag.StringVar(&wgDevice, "w", "", "Wireguard interface")
 	flag.Parse()
 
-	if peerHost == "" {
-		fmt.Fprintf(os.Stderr, "missing peer IP/hostname")
-		os.Exit(1)
-	}
 	if serverHost == "" {
 		fmt.Fprintf(os.Stderr, "missing server IP/hostname")
 		os.Exit(1)
@@ -203,13 +196,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	params, err := resolvePorts(peerHost, serverHost)
+	wgClient, err := wireguard.NewWgClient(wgDevice)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 		os.Exit(1)
 	}
 
-	err = setWireguardPorts(wgDevice, params.remote.PublicIP, params.remote.PublicPort, params.localPrivPort)
+	peers := wgClient.GetPeers()
+	if len(peers) < 1 {
+		fmt.Fprintln(os.Stderr, "at least one Peer required in wg config")
+		os.Exit(1)
+	}
+	peerPubKey := peers[0].PublicKey.String()
+
+	params, err := resolvePorts(wgClient, peerPubKey, serverHost)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v", err)
+		os.Exit(1)
+	}
+
+	err = setWireguardPorts(wgClient, peerPubKey, params)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 		os.Exit(1)

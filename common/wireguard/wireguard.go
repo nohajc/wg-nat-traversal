@@ -26,6 +26,38 @@ func NewWgClient(iface string) (*WgClient, error) {
 	}, nil
 }
 
+func (c *WgClient) GetInterfacePublicKey() (string, error) {
+	dev, err := c.client.Device(c.iface)
+	if err != nil {
+		return "", err
+	}
+
+	return dev.PublicKey.String(), nil
+}
+
+func (c *WgClient) GetPeers() []wgtypes.Peer {
+	dev, err := c.client.Device(c.iface)
+	if err != nil {
+		return nil
+	}
+
+	return dev.Peers
+}
+
+// func (wg *WgClient) FindPeerByPublicKey(pubKey string) (wgtypes.Peer, error) {
+// 	dev, err := wg.client.Device(wg.iface)
+// 	if err != nil {
+// 		return wgtypes.Peer{}, err
+// 	}
+
+// 	for _, p := range dev.Peers {
+// 		if p.PublicKey.String() == pubKey {
+// 			return p, nil
+// 		}
+// 	}
+// 	return wgtypes.Peer{}, errors.New("peer not found")
+// }
+
 // returns peer's public key
 func (wg *WgClient) FindPeerByRemoteIP(remoteIP string) (string, error) {
 	dev, err := wg.client.Device(wg.iface)
@@ -47,8 +79,8 @@ func (wg *WgClient) SetListenPort(listenPort int) error {
 	})
 }
 
-func (wg *WgClient) SetPeerRemotePort(peer string, remoteIP string, remotePort int) error {
-	pubKey, err := wgtypes.ParseKey(peer)
+func (wg *WgClient) SetPeerRemotePort(peerPubKey string, remoteIP string, remotePort int) error {
+	pubKey, err := wgtypes.ParseKey(peerPubKey)
 	if err != nil {
 		return err
 	}
