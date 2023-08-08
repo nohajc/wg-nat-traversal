@@ -35,13 +35,13 @@ func (c *WgClient) GetInterfacePublicKey() (string, error) {
 	return dev.PublicKey.String(), nil
 }
 
-func (c *WgClient) GetPeers() []wgtypes.Peer {
+func (c *WgClient) GetPeers() ([]wgtypes.Peer, error) {
 	dev, err := c.client.Device(c.iface)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	return dev.Peers
+	return dev.Peers, nil
 }
 
 // func (wg *WgClient) FindPeerByPublicKey(pubKey string) (wgtypes.Peer, error) {

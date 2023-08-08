@@ -202,7 +202,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	peers := wgClient.GetPeers()
+	peers, err := wgClient.GetPeers()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v", err)
+		os.Exit(1)
+	}
 	if len(peers) < 1 {
 		fmt.Fprintln(os.Stderr, "at least one Peer required in wg config")
 		os.Exit(1)
