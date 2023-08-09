@@ -10,11 +10,22 @@ import (
 	"github.com/nohajc/wg-nat-traversal/common/nat"
 )
 
-var peerTable = map[string]nat.STUNInfo{}
+type Entry struct {
+	Value  nat.STUNInfo
+	Expiry *time.Timer
+}
+
+var peerTable = map[string]*Entry{}
 var peerTableMu sync.Mutex
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	pubKey := r.URL.Query().Get("pubkey")
+	if pubKey == "" {
+		st := http.StatusBadRequest
+		http.Error(w, http.StatusText(st), st)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		log.Printf("GET request with pubkey = %s", pubKey)
@@ -25,7 +36,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 
 		if ok {
 			enc := json.NewEncoder(w)
-			err := enc.Encode(&peer)
+			err := enc.Encode(&peer.Value)
 			if err != nil {
 				log.Printf("json encode error: %v", err)
 				st := http.StatusInternalServerError
@@ -48,15 +59,25 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		peerTableMu.Lock()
-		peerTable[pubKey] = info
-		peerTableMu.Unlock()
+		if entry, ok := peerTable[pubKey]; ok {
+			if entry.Value != info {
+				entry.Expiry.Reset(20 * time.Second)
+				entry.Value = info
+			}
+		} else {
+			expiry := time.AfterFunc(20*time.Second, func() {
+				peerTableMu.Lock()
+				delete(peerTable, pubKey)
+				log.Printf("deleted %s from table", pubKey)
+				peerTableMu.Unlock()
+			})
 
-		// TODO: proper TTL - this is incorrect if an existing key is updated
-		time.AfterFunc(20*time.Second, func() {
-			peerTableMu.Lock()
-			delete(peerTable, pubKey)
-			peerTableMu.Unlock()
-		})
+			peerTable[pubKey] = &Entry{
+				Value:  info,
+				Expiry: expiry,
+			}
+		}
+		peerTableMu.Unlock()
 	}
 }
 
