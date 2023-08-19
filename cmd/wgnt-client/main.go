@@ -221,7 +221,12 @@ func main() {
 	peerPubKey := peers[0].PublicKey.String()
 
 	if daemonMode {
-		wsURL := fmt.Sprintf("ws://%s:8080/ws?pubkey=%s", serverHost, peerPubKey)
+		pubKey, err := wgClient.GetInterfacePublicKey()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error getting wg interface public key: %v\n", err)
+			os.Exit(1)
+		}
+		wsURL := fmt.Sprintf("ws://%s:8080/ws?pubkey=%s", serverHost, pubKey)
 		wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
