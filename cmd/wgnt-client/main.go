@@ -219,7 +219,7 @@ func main() {
 	peerPubKey := peers[0].PublicKey.String()
 
 	if daemonMode {
-		wsURL := fmt.Sprintf("ws://%s:8080/ws", serverHost)
+		wsURL := fmt.Sprintf("ws://%s:8080/ws?pubkey=%s", serverHost, peerPubKey)
 		wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
