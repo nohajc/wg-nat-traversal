@@ -92,13 +92,7 @@ func (r *WriteRequest) Error() chan error {
 	return r.statusChan
 }
 
-type Message struct {
-	// TODO
-}
-
-func (m *Message) String() string {
-	return "" // TODO
-}
+type Message = nat.Message
 
 func (c *Client) readMessage() (Message, error) {
 	msg := Message{}
@@ -123,7 +117,7 @@ func (c *Client) readIncoming() {
 			}
 			break
 		}
-		log.Printf("Message: %s", &msg)
+		log.Printf("Message: %+v", &msg)
 	}
 }
 
@@ -182,6 +176,8 @@ func (wsr *WebSockRouter) wsRequestHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	c := NewClient(pubKey, conn, wsr)
+	wsr.AddClient(pubKey, c)
+
 	go c.readIncoming()
 	go c.writeOutgoing()
 }
@@ -214,7 +210,7 @@ func (wsr *WebSockRouter) requestHandler(w http.ResponseWriter, r *http.Request)
 		} else {
 			wsPeer, ok := wsr.clients[pubKey]
 			if ok {
-				err := wsPeer.writeMessage(r.Context(), Message{})
+				err := wsPeer.writeMessage(r.Context(), Message{Test: "msg"})
 				if err == nil {
 					// TODO: wait for response from peer
 					// which will announce the port mapping

@@ -35,6 +35,8 @@ type Client struct {
 	ServerURL string
 }
 
+type Message = nat.Message
+
 func NewClient(serverHost string) *Client {
 	return &Client{
 		ServerURL: fmt.Sprintf("http://%s:8080/", serverHost),
@@ -227,7 +229,7 @@ func main() {
 		}
 
 		for {
-			var msg struct{}
+			msg := Message{}
 			err := wsConn.ReadJSON(&msg)
 			if err != nil {
 				log.Println("read:", err)

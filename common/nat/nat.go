@@ -96,6 +96,10 @@ type STUNInfo struct {
 	NATKind    NAT    `json:"nat_kind"`
 }
 
+type Message struct {
+	Test string `json:"test"`
+}
+
 func GetPublicAddrWithNATKind(conn *net.UDPConn) (*STUNInfo, error) {
 	_, port1, err := STUN_Google.getPublicAddr(conn)
 	if err != nil {
