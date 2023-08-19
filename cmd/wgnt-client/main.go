@@ -233,15 +233,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		for {
-			msg := Message{}
-			err := wsConn.ReadJSON(&msg)
-			if err != nil {
-				log.Println("read:", err)
-				return
-			}
-			log.Println("received message")
+		msg := Message{}
+		err = wsConn.ReadJSON(&msg)
+		if err != nil {
+			log.Println("read:", err)
+			return
 		}
+		log.Println("received notification from peer")
 	}
 
 	params, err := resolvePorts(wgClient, peerPubKey, serverHost)
