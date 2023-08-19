@@ -193,23 +193,23 @@ func main() {
 	flag.Parse()
 
 	if serverHost == "" {
-		fmt.Fprintf(os.Stderr, "missing server IP/hostname")
+		fmt.Fprintln(os.Stderr, "missing server IP/hostname")
 		os.Exit(1)
 	}
 	if wgDevice == "" {
-		fmt.Fprintf(os.Stderr, "missing Wireguard interface")
+		fmt.Fprintln(os.Stderr, "missing Wireguard interface")
 		os.Exit(1)
 	}
 
 	wgClient, err := wireguard.NewWgClient(wgDevice)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 
 	peers, err := wgClient.GetPeers()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 	if len(peers) < 1 {
@@ -219,10 +219,10 @@ func main() {
 	peerPubKey := peers[0].PublicKey.String()
 
 	if daemonMode {
-		wsURL := fmt.Sprintf("ws://%s/ws", serverHost)
+		wsURL := fmt.Sprintf("ws://%s:8080/ws", serverHost)
 		wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v", err)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)
 		}
 
@@ -239,13 +239,13 @@ func main() {
 
 	params, err := resolvePorts(wgClient, peerPubKey, serverHost)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 
 	err = setWireguardPorts(wgClient, peerPubKey, params)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
