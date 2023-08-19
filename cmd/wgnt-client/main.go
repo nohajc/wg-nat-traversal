@@ -6,11 +6,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/nohajc/wg-nat-traversal/common/nat"
 	"github.com/nohajc/wg-nat-traversal/common/wireguard"
 )
@@ -183,6 +185,9 @@ func resolvePorts(wgClient *wireguard.WgClient, peerPubKey string, serverHost st
 
 func main() {
 	var serverHost, wgDevice string
+	var daemonMode bool // should be used by the peer with a wireguard server
+
+	flag.BoolVar(&daemonMode, "d", false, "daemon mode (listen for peers)")
 	flag.StringVar(&serverHost, "s", "", "server IP/hostname")
 	flag.StringVar(&wgDevice, "w", "", "Wireguard interface")
 	flag.Parse()
@@ -212,6 +217,25 @@ func main() {
 		os.Exit(1)
 	}
 	peerPubKey := peers[0].PublicKey.String()
+
+	if daemonMode {
+		wsURL := fmt.Sprintf("ws://%s/ws", serverHost)
+		wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			os.Exit(1)
+		}
+
+		for {
+			var msg struct{}
+			err := wsConn.ReadJSON(&msg)
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			log.Println("received message")
+		}
+	}
 
 	params, err := resolvePorts(wgClient, peerPubKey, serverHost)
 	if err != nil {
