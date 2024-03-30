@@ -220,6 +220,7 @@ func main() {
 	}
 	peerPubKey := peers[0].PublicKey.String()
 
+	var wsConn *websocket.Conn
 	if daemonMode {
 		pubKey, err := wgClient.GetInterfacePublicKey()
 		if err != nil {
@@ -227,30 +228,38 @@ func main() {
 			os.Exit(1)
 		}
 		wsURL := fmt.Sprintf("ws://%s:8080/ws?pubkey=%s", serverHost, pubKey)
-		wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		wsConn, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	for {
+		if wsConn != nil {
+			msg := Message{}
+			err = wsConn.ReadJSON(&msg)
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			log.Println("received notification from peer")
+		}
+
+		params, err := resolvePorts(wgClient, peerPubKey, serverHost)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			continue
+		}
+
+		err = setWireguardPorts(wgClient, peerPubKey, params)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)
 		}
 
-		msg := Message{}
-		err = wsConn.ReadJSON(&msg)
-		if err != nil {
-			log.Println("read:", err)
-			return
+		if wsConn == nil {
+			break
 		}
-		log.Println("received notification from peer")
-	}
-
-	params, err := resolvePorts(wgClient, peerPubKey, serverHost)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	err = setWireguardPorts(wgClient, peerPubKey, params)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
 	}
 }

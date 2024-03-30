@@ -26,3 +26,5 @@ require (
 	golang.org/x/sys v0.7.0 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b // indirect
 )
+
+replace golang.zx2c4.com/wireguard/wgctrl => github.com/nohajc/wgctrl-go v0.0.0-20230909120350-ad59fbf5267b
